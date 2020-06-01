@@ -3,31 +3,60 @@ import json
 import requests
 import re
 
-class Agent:
+"""
+This class is used to store the details related to the HTTPRequestAgent, so that they may be used by the PrintAgent
+"""
+class HttpAgent:
     def __init__(self, name, url, urlParameters, result):
         self.name = name
         self.url = url
         self.urlParameters = urlParameters
         self.result = result
 
-def checkDict(checkRecurssion, parameters, index = 0):
+"""
+This is a recursive method used to identify the most nested values in the results of HTTP requests
+"""
+def checkForRecurssion(httpResult, parameters, index = 0):
+
+    # Parameter will only be a str when passed recursively. When parameter is a str we have our result
     if type(parameters) is str:
-        return checkRecurssion[parameters]
+        return httpResult[parameters]
 
+    # if len is <= 1 then the result is not nested so no action is needed
     if len(parameters) > 1:
-        if type(checkRecurssion.result[parameters[index]]) is dict:
-            if index is not len(parameters):
-                checkRecurssion = checkRecurssion.result[parameters[index]]
-                index=index+1
-                return checkDict(checkRecurssion, parameters[index])
-            else: checkRecurssion.result[parameters]
 
-    else:
-        return checkRecurssion.result[parameters[index]]
+        # Update the dictionary to be the nested dictionary
+        httpResult = httpResult.result[parameters[index]]
 
+        # increment index to access the next parameter and pass this recursively with the nested dictionary
+        index=index+1
+        return checkForRecurssion(httpResult, parameters[index])
+
+    return httpResult.result[parameters[index]]
+
+"""
+Method used for finding parameters in the URLs and the Message
+"""
 def findParameters(text):
+    # Matches that contain any number of word characters followed by a dot, contained within curly brackets
     pattern = re.compile(r'\{\{([\w.]+)\}\}')
     return pattern.finditer(text)
+
+"""
+This method is used to update the template values in the URLs and messages
+"""
+def updateTemplateValue(match, text):
+    # Split the url to identify the agent and the parameters of that agent that are to be accessed
+    splitMatch = match.group(1).split(".")
+
+    # Name of the agent, parameter(s) of that agent which need to be used in the url
+    agentName, parameters = splitMatch[0], splitMatch[1]
+
+    # Store the nested most value 
+    toBeReplaced = checkForRecurssion(httpReqObjects[agentName], splitMatch[1:])
+
+    return text.replace(match.group(0), str(toBeReplaced))
+
 
 if __name__ == "__main__":
 
@@ -35,73 +64,57 @@ if __name__ == "__main__":
     with open("tines/data/location.json", "r") as json_data:
         story = json.load(json_data)
 
-    # Stores the parameters contained within the request URL
-    urlParameters = []
-    messageParameters = []
-
-    # Dictionary to store the results of each HTTP Agent
-    httpAgent= {}
-
-    # Objects
-    objects = {}
+    # Dictionary of objects storing the results of HTTPRequestAgents
+    httpReqObjects = {}
     
     # Loop through the agents in the story file
     for agent in story["agents"]:
+
+        # Store agent name in variable for easier readability
         agentName = agent["name"]
 
-        ## If we have a HTTP request, check for parameters in the URL and store them in urlParameters
+        ## If we have a HTTP request, check for parameters in the URL and replace them with the corresponding values
         if agent["type"] == "HTTPRequestAgent":
 
+            # Store url in variable for easier readability
             url = agent["options"]["url"]
 
             # Create result dictionary for each agent
-            objects[agent["name"]] = Agent(agentName, url, [], {})
+            httpReqObjects[agent["name"]] = HttpAgent(agentName, url, [], {})
 
-            # Find matches that contain any number of word characters followed by a dot, contained within curly brackets
+            # Find the parameters within the url
             matches = findParameters(url)
 
-            # If we have a valid match, loop through all matches and store that part of the regex pattern contained within the parenthesis
+            ## If we have a valid match, loop through all matches and replace each match with its corresponding value
             if matches:
-                for count, match in enumerate(matches):
+                for match in matches:
 
-                    # Split the url to identify the agent and the parameters of that agent that are to be accessed
-                    splitMatch = match.group(1).split(".")
-
-                    # Name of the agent, parameter(s) of that agent which need to be used in the url
-                    agentName = splitMatch[0]
-
-                    # Replace the template result in the URL with the actual result
-                    url = url.replace(match.group(0), objects[agentName].result[splitMatch[1]])
+                    # Replace the template result in the URL with the actual result of the parameter
+                    url = updateTemplateValue(match, url)
                     
-                # Store the update URL
-                objects[agent["name"]].url = url
+                # Update the url to allow access from PrintAgent
+                httpReqObjects[agent["name"]].url = url
 
             # Store the response from the request URL in JSON
-            objects[agent["name"]].result = requests.get(url).json()
+            httpReqObjects[agent["name"]].result = requests.get(url).json()
 
-            
-        
-
+        ## If we have a PrintAgent, check for parameters in the message and replace them with the corresponding values
         elif agent["type"] == "PrintAgent":
 
-            # Extract the message
+            # Extract the message from the PrintAgent
             message = agent["options"]["message"]
             
-            # Find matches that contain any number of word characters followed by a dot, contained within curly brackets
+            # Find the parameters within the message
             matches = findParameters(message)
             
-            # If we have a valid match, loop through all matches and store that part of the regex pattern contained within the parenthesis
+            ## If we have a valid match, loop through all matches and replace each match with its corresponding value
             if matches:
-                for count, match in enumerate(matches):
-                    messageParameters.append(match.group(1))
-                    splitRes = match.group(1).split(".")
-                    agentName = splitRes[0]
+                for match in matches:
 
-                    toBeReplaced = ""   
-                    toBeReplaced = checkDict(objects[agentName], splitRes[1:])
+                    # Replace the template result in the message with the actual result of the parameter
+                    message = updateTemplateValue(match, message)
 
-                    message = message.replace(match.group(0), toBeReplaced)
                 print(message)
         else:
-            print("Please enter a valid agent")
+            print(f"Invalid agent {{agent['name']}} Identified in Tines Story")
 
