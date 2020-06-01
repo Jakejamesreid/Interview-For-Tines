@@ -4,16 +4,6 @@ import requests
 import re
 
 """
-This class is used to store the details related to the HTTPRequestAgent, so that they may be used by the PrintAgent
-"""
-class HttpAgent:
-    def __init__(self, name, url, urlParameters, result):
-        self.name = name
-        self.url = url
-        self.urlParameters = urlParameters
-        self.result = result
-
-"""
 This is a recursive method used to identify the most nested values in the results of HTTP requests
 """
 def checkForRecurssion(httpResult, parameters, index = 0):
@@ -26,13 +16,13 @@ def checkForRecurssion(httpResult, parameters, index = 0):
     if len(parameters) > 1:
 
         # Update the dictionary to be the nested dictionary
-        httpResult = httpResult.result[parameters[index]]
+        httpResult = httpResult[parameters[index]]
 
         # increment index to access the next parameter and pass this recursively with the nested dictionary
         index=index+1
         return checkForRecurssion(httpResult, parameters[index])
 
-    return httpResult.result[parameters[index]]
+    return httpResult[parameters[index]]
 
 """
 Method used for finding parameters in the URLs and the Message
@@ -64,23 +54,17 @@ if __name__ == "__main__":
     with open("tines/data/location.json", "r") as json_data:
         story = json.load(json_data)
 
-    # Dictionary of objects storing the results of HTTPRequestAgents
+    # Dictionary storing the results of HTTPRequestAgents
     httpReqObjects = {}
     
     # Loop through the agents in the story file
     for agent in story["agents"]:
-
-        # Store agent name in variable for easier readability
-        agentName = agent["name"]
 
         ## If we have a HTTP request, check for parameters in the URL and replace them with the corresponding values
         if agent["type"] == "HTTPRequestAgent":
 
             # Store url in variable for easier readability
             url = agent["options"]["url"]
-
-            # Create result dictionary for each agent
-            httpReqObjects[agent["name"]] = HttpAgent(agentName, url, [], {})
 
             # Find the parameters within the url
             matches = findParameters(url)
@@ -91,12 +75,9 @@ if __name__ == "__main__":
 
                     # Replace the template result in the URL with the actual result of the parameter
                     url = updateTemplateValue(match, url)
-                    
-                # Update the url to allow access from PrintAgent
-                httpReqObjects[agent["name"]].url = url
 
             # Store the response from the request URL in JSON
-            httpReqObjects[agent["name"]].result = requests.get(url).json()
+            httpReqObjects[agent["name"]] = requests.get(url).json()
 
         ## If we have a PrintAgent, check for parameters in the message and replace them with the corresponding values
         elif agent["type"] == "PrintAgent":
