@@ -4,6 +4,35 @@ import requests
 import re
 
 """
+Method used for finding parameters in the URLs and the Message
+"""
+def findEventParameters(text):
+    # Match pattern for text within double curly braces that has the format word.word which can occur 1 or more times
+    pattern = re.compile(r'\{\{((\w+\.)+\w+)\}\}')
+    return pattern.finditer(text)
+    
+"""
+This method is used to update the template values in the URLs and messages
+"""
+def updateTemplateValue(matches, text, httpReqObjects):
+
+    # Loop over each match and replace it with the correct value
+    for match in matches:
+        # Split the url to identify the agent and the parameters of that agent that are to be accessed
+        splitMatch = match.group(1).split(".")
+
+        # Name of the agent, parameter(s) of that agent which need to be used in the url
+        agentName, parameters = splitMatch[0], splitMatch[1:]
+
+        # Store the nested most value 
+        toBeReplaced = checkForRecurssion(httpReqObjects[agentName], parameters)
+
+        # Replace the match with the correct value
+        text = text.replace(match.group(0), str(toBeReplaced))
+
+    return text
+    
+"""
 This is a recursive method used to identify the most nested values in the results of HTTP requests
 """
 def checkForRecurssion(httpResult, parameters, index = 0):
@@ -24,36 +53,17 @@ def checkForRecurssion(httpResult, parameters, index = 0):
 
     return httpResult[parameters[index]]
 
-"""
-Method used for finding parameters in the URLs and the Message
-"""
-def findParameters(text):
-    # Matches that contain any number of word characters followed by a dot, contained within curly brackets
-    pattern = re.compile(r'\{\{([\w.]+)\}\}')
-    return pattern.finditer(text)
-
-"""
-This method is used to update the template values in the URLs and messages
-"""
-def updateTemplateValue(match, text):
-    # Split the url to identify the agent and the parameters of that agent that are to be accessed
-    splitMatch = match.group(1).split(".")
-
-    # Name of the agent, parameter(s) of that agent which need to be used in the url
-    agentName, parameters = splitMatch[0], splitMatch[1]
-
-    # Store the nested most value 
-    toBeReplaced = checkForRecurssion(httpReqObjects[agentName], splitMatch[1:])
-
-    return text.replace(match.group(0), str(toBeReplaced))
 
 
 if __name__ == "__main__":
 
     # Open the tines story
-    with open("tines/data/location.json", "r") as json_data:
-        story = json.load(json_data)
-
+    try:
+        with open("tines/data/location.json", "r") as json_data:
+            story = json.load(json_data)
+    except FileNotFoundError as err:
+        raise Exception(err, "The specified file path for the Tines Story is incorrect")
+    
     # Dictionary storing the results of HTTPRequestAgents
     httpReqObjects = {}
     
@@ -66,18 +76,32 @@ if __name__ == "__main__":
             # Store url in variable for easier readability
             url = agent["options"]["url"]
 
-            # Find the parameters within the url
-            matches = findParameters(url)
+            # Ensure that the URL is of the correct format
+            if type(url) is not str:
+                raise TypeError("Provided URL is not of type string")
+            elif "/json" not in url:
+                raise ValueError(f"URL {url} does not contain a JSON bosy, only requests against URLs that contain JSON bodies are supoorted")
 
-            ## If we have a valid match, loop through all matches and replace each match with its corresponding value
-            if matches:
-                for match in matches:
+            # Find the event parameters within the URL, if any exist
+            eventParameters = findEventParameters(url)
 
-                    # Replace the template result in the URL with the actual result of the parameter
-                    url = updateTemplateValue(match, url)
+            ## If URL contains parameters, loop through all and replace each match with its corresponding value
+            if eventParameters:
+
+                # Replace the template result in the URL with the actual result of the parameter
+                url = updateTemplateValue(eventParameters, url, httpReqObjects)
+        
+            # Make the http request and raise error if request fails
+            try:
+                request = requests.get(url)
+                request.raise_for_status()
+            except requests.exceptions.HTTPError as err:
+                raise SystemExit(err, f"Invalid URL {url}")  
+            except requests.exceptions.RequestException:
+                raise Exception(f'Failed to connect to {url}')
 
             # Store the response from the request URL in JSON
-            httpReqObjects[agent["name"]] = requests.get(url).json()
+            httpReqObjects[agent["name"]] = request.json()
 
         ## If we have a PrintAgent, check for parameters in the message and replace them with the corresponding values
         elif agent["type"] == "PrintAgent":
@@ -85,17 +109,20 @@ if __name__ == "__main__":
             # Extract the message from the PrintAgent
             message = agent["options"]["message"]
             
-            # Find the parameters within the message
-            matches = findParameters(message)
+            # Ensure that the message is of the correct format
+            if type(message) is not str:
+                raise TypeError(f"Provided Message {message} is not of type string")
+
+            # Find the event parameters within the message, if any exist
+            eventParameters = findEventParameters(message)
             
             ## If we have a valid match, loop through all matches and replace each match with its corresponding value
-            if matches:
-                for match in matches:
+            if eventParameters:
 
-                    # Replace the template result in the message with the actual result of the parameter
-                    message = updateTemplateValue(match, message)
+                # Replace the template result in the message with the actual result of the parameter
+                message = updateTemplateValue(eventParameters, message, httpReqObjects)
 
                 print(message)
         else:
-            print(f"Invalid agent {{agent['name']}} Identified in Tines Story")
+            raise ValueError(f"Invalid agent {agent['name']} Identified in Tines Story")
 
