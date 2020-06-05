@@ -137,7 +137,11 @@ def main(path):
 if __name__ == "__main__":
 
     # Program description
-    parser = argparse.ArgumentParser(description='Process a Tines Story.')
+    parser = argparse.ArgumentParser(description="""Tiny Tines is a command line program that takes the path to a Tiny Tines Story JSON file as its only command line argument and executes that Story.
+
+    A Story file contains a single JSON object. That object has a single key, agents , mapping to an array of Agents. An Agent is a building block of a Story that can be configured to take an action.
+
+    An Agent is described in the Story file by an object with the keys type , name and options. An Agent's name is a string (that must itself be a valid JSON key) and its options are a collection of key/value pairs that depend on the Agent type (a string).""")
 
     # Add optional --path arguement to pass the path of the Tines Story to be executed, otherwise default path will be used
     parser.add_argument("--path", help="The path to the Tines Story. If no path is entered the program will check for a story call 'tiny_tines_submission.json' at the same location as the 'app.py' file")
