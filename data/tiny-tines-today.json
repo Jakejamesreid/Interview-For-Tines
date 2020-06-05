@@ -1,0 +1,33 @@
+{
+    "agents": [
+      {
+        "type": "HTTPRequestAgent",
+        "name": "datetime",
+        "options": {
+          "url": "http://worldtimeapi.org/api/ip"
+        }
+      },
+      {
+        "type": "PrintAgent",
+        "name": "print_time",
+        "options": {
+          "message": "Current time:\n\t{{datetime.datetime}}"
+        }
+      },
+      {
+        "type": "HTTPRequestAgent",
+        "name": "fact",
+        "options": {
+          "url": "http://numbersapi.com/{{datetime.day_of_year}}/date?json"
+        }
+      },
+      {
+        "type": "PrintAgent",
+        "name": "print_fact",
+        "options": {
+          "message": "Fact for today:\n\t{{fact.text}}"
+        }
+      }
+    ]
+  }
+  
