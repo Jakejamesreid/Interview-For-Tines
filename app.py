@@ -144,7 +144,7 @@ if __name__ == "__main__":
     An Agent is described in the Story file by an object with the keys type , name and options. An Agent's name is a string (that must itself be a valid JSON key) and its options are a collection of key/value pairs that depend on the Agent type (a string).""")
 
     # Add optional --path arguement to pass the path of the Tines Story to be executed, otherwise default path will be used
-    parser.add_argument("--path", help="The path to the Tines Story. If no path is entered the program will check for a story call 'tiny_tines_submission.json' at the same location as the 'app.py' file")
+    parser.add_argument("--path", help="The path to the Tines Story. If no path is entered the program will check for a story call 'tiny_tines_sunset.json' located in the data folder)
     
     # Store command line arguerments
     args = parser.parse_args()
@@ -153,4 +153,4 @@ if __name__ == "__main__":
     if args.path:
         main(args.path)
     else:
-        main(os.path.dirname(__file__)+"\\tiny-tines-submission.json")
+        main(os.path.dirname(__file__)+"\\data\\tiny-tines-sunset.json")
